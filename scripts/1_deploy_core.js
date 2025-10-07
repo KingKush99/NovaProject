@@ -1,62 +1,67 @@
-// scripts/1_deploy_core.js
-// This script deploys the 4 foundational contracts of your ecosystem.
+// scripts/1_deploy_core.js (TEMPORARY: FOR REDEPLOYING ONLY NFTAuctionHouse)
 
 const { ethers, upgrades } = require("hardhat");
 const fs = require('fs');
+const path = require('path');
 
 async function main() {
+  console.log("--- Starting Selective Contract Deployment (NFTAuctionHouse Only) ---");
+
   const [deployer] = await ethers.getSigners();
-  console.log("--- Starting Core Deployment (Step 1 of 3) ---");
-  console.log("Deploying core infrastructure with account:", deployer.address);
+  console.log(`Using deployer account: ${deployer.address}`);
 
-  // This object will hold the results of this script
-  const deployedAddresses = {};
+  // Load existing addresses to preserve them, if possible.
+  const outputPath = path.join(__dirname, '../deployed_addresses.json');
+  let deployedAddresses = {};
+  try {
+    if (fs.existsSync(outputPath)) {
+        deployedAddresses = JSON.parse(fs.readFileSync(outputPath, 'utf8'));
+        console.log("Loaded existing deployed_addresses.json.");
+    }
+  } catch (error) {
+    console.warn(`Could not load existing deployed_addresses.json: ${error.message}. Starting fresh.`);
+  }
 
-  // --- TIER 1: THE FOUNDATIONAL PILLAR ---
-  console.log("\nDeploying NovaRegistry...");
-  const NovaRegistry = await ethers.getContractFactory("NovaRegistry");
-  const novaRegistry = await upgrades.deployProxy(NovaRegistry, [deployer.address], { initializer: 'initialize', kind: 'uups' });
-  const novaRegistryAddress = await novaRegistry.getAddress();
-  deployedAddresses["NovaRegistry"] = novaRegistryAddress;
-  console.log("-> NovaRegistry deployed to:", novaRegistryAddress);
+  // --- Ensure necessary addresses exist for initialization (if they are arguments to NFTAuctionHouse) ---
+  // In your NFTAuctionHouse.sol, initialize only takes 'initialOwnerAddress'.
+  // If it took NovaRegistry or NovaCoin address, you'd need those loaded here:
+  const initialOwnerAddress = deployer.address;
+  // If communityFundAddress is part of NFTAuctionHouse initializer, define it:
+  // const communityFundAddress = "0x7c00e73d0c8cD8e036BE4b128d9a2454f3aaeD50"; 
 
-  // --- TIER 2: THE CORE ECONOMIC ENGINE ---
-  console.log("\nDeploying NovaCoin...");
-  const NovaCoin = await ethers.getContractFactory("NovaCoin_ProgrammableSupply");
-  const novaCoin = await upgrades.deployProxy(NovaCoin, [deployer.address], { initializer: 'initialize', kind: 'uups' });
-  const novaCoinAddress = await novaCoin.getAddress();
-  deployedAddresses["NovaCoin_ProgrammableSupply"] = novaCoinAddress;
-  console.log("-> NovaCoin deployed to:", novaCoinAddress);
+  // --- Deploy NFTAuctionHouse ONLY ---
+  console.log("\nDeploying NFTAuctionHouse...");
+  const NFTAuctionHouse = await ethers.getContractFactory("NFTAuctionHouse");
+  // Ensure correct initializer arguments based on your NFTAuctionHouse.sol initialize function
+  const nftAuctionHouse = await upgrades.deployProxy(NFTAuctionHouse, [initialOwnerAddress], { initializer: 'initialize', kind: 'uups' });
+  await nftAuctionHouse.waitForDeployment();
+  const nftAuctionHouseAddress = await nftAuctionHouse.getAddress();
+  const nftAuctionHouseImplementationAddress = await upgrades.erc1967.getImplementationAddress(nftAuctionHouseAddress);
   
-  console.log("\nDeploying NovaTreasury...");
-  const NovaTreasury = await ethers.getContractFactory("NovaTreasury");
-  const novaTreasury = await upgrades.deployProxy(NovaTreasury, [deployer.address], { initializer: 'initialize', kind: 'uups' });
-  const novaTreasuryAddress = await novaTreasury.getAddress();
-  deployedAddresses["NovaTreasury"] = novaTreasuryAddress;
-  console.log("-> NovaTreasury deployed to:", novaTreasuryAddress);
+  // Update only NFTAuctionHouse address in the object
+  deployedAddresses.NFTAuctionHouse = nftAuctionHouseAddress;
+  deployedAddresses.NFTAuctionHouse_Implementation = nftAuctionHouseImplementationAddress;
+  
+  console.log(`NFTAuctionHouse deployed to: ${nftAuctionHouseAddress}`);
+  console.log(`NFTAuctionHouse implementation deployed to: ${nftAuctionHouseImplementationAddress}`);
 
-  console.log("\nDeploying TokenVesting...");
-  const VESTING_DURATION = 10 * 365 * 24 * 60 * 60; // 10 years in seconds
-  const TokenVesting = await ethers.getContractFactory("TokenVesting");
-  const tokenVesting = await upgrades.deployProxy(TokenVesting, [deployer.address, deployer.address, VESTING_DURATION, novaCoinAddress], { 
-    initializer: 'initialize', 
-    kind: 'uups' 
-  });
-  const tokenVestingAddress = await tokenVesting.getAddress();
-  deployedAddresses["TokenVesting"] = tokenVestingAddress;
-  console.log("-> TokenVesting deployed to:", tokenVestingAddress);
-  
-  // Save the addresses of the deployed core contracts to a new file.
-  // The next script (2_deploy_apps.js) will read this file to get the registry's address.
-  fs.writeFileSync("deployed_addresses.json", JSON.stringify(deployedAddresses, null, 2));
-  
-  console.log("\n--- Core Deployment Complete ---");
-  console.log("Core contract addresses saved to deployed_addresses.json");
+  // --- End Deploy NFTAuctionHouse ONLY ---
+
+
+  // Save the updated deployed addresses to a JSON file
+  fs.writeFileSync(outputPath, JSON.stringify(deployedAddresses, null, 2));
+  console.log(`\nUpdated deployed_addresses.json with new NFTAuctionHouse address.`);
+  console.log(`\n--- Selective Contract Deployment (NFTAuctionHouse Only) Complete ---`);
+
+  // --- IMPORTANT: Output the new NFTAuctionHouse address for easy copy-pasting to CamAppServer/config/contractAddresses.json ---
+  console.log("\n--- NEW NFTAUCTIONHOUSE AMOY ADDRESS FOR CAMAPPSERVER ---");
+  console.log(`"NFTAuctionHouse": "${nftAuctionHouseAddress}",`);
+  console.log("---------------------------------------------------------------");
 }
 
 main()
   .then(() => process.exit(0))
-  .catch((error) => {
+  .catch(error => {
     console.error(error);
     process.exit(1);
   });

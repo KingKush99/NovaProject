@@ -63,7 +63,7 @@ async function main() {
   // Step 2: Minting initial supply is now handled by the NovaCoin_ProgrammableSupply contract's initializer.
   // The deployer's wallet will automatically receive the initial supply upon deployment.
   console.log("\nStep 2: Initial supply handled by contract initializer. Skipping direct minting in script.");
-  
+
   // Step 3: Ensuring deployer has enough MATIC for gas (primarily for subsequent transactions).
   console.log("\nStep 3: Ensuring deployer has enough MATIC...");
   const deployerBalance = await ethers.provider.getBalance(deployer.address);
@@ -77,8 +77,8 @@ async function main() {
 }
 
 main()
-  .then(() => process.exit(0))
-  .catch(error => {
-    console.error(error);
-    process.exit(1);
-  });
+    .then(() => process.exit(0))
+    .catch(error => {
+      console.error(error);
+      process.exit(1);
+    });

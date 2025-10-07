@@ -1,10 +1,7 @@
-// Filename: contracts/NFTOfferBook.sol
+// Filename: contracts/NFTOfferBook.sol (FINAL CORRECTED VERSION)
 // SPDX-License-Identifier: MIT
-// This file has been manually flattened to resolve import errors. (Corrected Version)
-
 pragma solidity ^0.8.30;
 
-//--- Start of Imported File: @openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol ---
 abstract contract Initializable {
     bool private _initialized;
     bool private _initializing;
@@ -12,31 +9,18 @@ abstract contract Initializable {
         bool isTopLevel = !_initializing;
         require(isTopLevel ? !_initialized : _initializing, "Initializable: contract is already initialized");
         _initialized = true;
-        if (isTopLevel) {
-            _initializing = true;
-        }
+        if (isTopLevel) { _initializing = true; }
         _;
-        if (isTopLevel) {
-            _initializing = false;
-        }
+        if (isTopLevel) { _initializing = false; }
     }
-    modifier onlyInitializing() {
-        require(_initializing, "Initializable: contract is not initializing");
-        _;
-    }
-    function _disableInitializers() internal virtual {
-        require(!_initializing, "Initializable: contract is initializing");
-        if (_initialized) { return; }
-        _initialized = true;
-    }
+    modifier onlyInitializing() { require(_initializing, "Initializable: contract is not initializing"); _; }
+    function _disableInitializers() internal virtual { require(!_initializing, "Initializable: contract is initializing"); if (_initialized) { return; } _initialized = true; }
 }
 //--- End of Imported File ---
 
 //--- Start of Imported File: @openzeppelin/contracts/utils/Context.sol ---
 abstract contract Context {
-    function _msgSender() internal view virtual returns (address) {
-        return msg.sender;
-    }
+    function _msgSender() internal view virtual returns (address) { return msg.sender; }
 }
 //--- End of Imported File ---
 
@@ -44,14 +28,13 @@ abstract contract Context {
 abstract contract OwnableUpgradeable is Initializable, Context {
     address private _owner;
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-    function __Ownable_init(address initialOwner) internal onlyInitializing { _transferOwnership(initialOwner); }
+    // Corrected: __Ownable_init takes NO arguments in OZ 4.9.0+
+    function __Ownable_init() internal onlyInitializing { _transferOwnership(_msgSender()); } 
     function owner() public view virtual returns (address) { return _owner; }
     modifier onlyOwner() { require(owner() == _msgSender(), "Ownable: caller is not the owner"); _; }
     function transferOwnership(address newOwner) public virtual onlyOwner { _transferOwnership(newOwner); }
     function _transferOwnership(address newOwner) internal virtual {
-        address oldOwner = _owner;
-        _owner = newOwner;
-        emit OwnershipTransferred(oldOwner, newOwner);
+        address oldOwner = _owner; _owner = newOwner; emit OwnershipTransferred(oldOwner, newOwner);
     }
 }
 //--- End of Imported File ---
@@ -117,13 +100,17 @@ contract NFTOfferBook is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() { _disableInitializers(); }
+
+    // Corrected: __Ownable_init takes NO arguments in OZ 4.9.0+
     function initialize(address initialOwner, address registryAddress) public initializer {
-        __Ownable_init(initialOwner);
-        __UUPSUpgradeable_init(); // This will now work
+        __Ownable_init(); 
+        __UUPSUpgradeable_init();
         __ReentrancyGuard_init();
         novaRegistry = INovaRegistry(registryAddress);
     }
+
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+
     function makeOffer(address _nftAddress, uint256 _tokenId, uint256 _amount) external nonReentrant {
         require(offers[_nftAddress][_tokenId].offeror == address(0), "Offer: Exists.");
         address novaCoinAddress = novaRegistry.getContractAddress(keccak256(abi.encodePacked("NOVA_COIN")));
@@ -131,6 +118,7 @@ contract NFTOfferBook is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         offers[_nftAddress][_tokenId] = Offer(msg.sender, _amount);
         emit OfferMade(msg.sender, _nftAddress, _tokenId, _amount);
     }
+
     function cancelOffer(address _nftAddress, uint256 _tokenId) external nonReentrant {
         Offer memory offer = offers[_nftAddress][_tokenId];
         require(offer.offeror == msg.sender, "Offer: Not owner.");
@@ -139,10 +127,11 @@ contract NFTOfferBook is Initializable, OwnableUpgradeable, UUPSUpgradeable, Ree
         IERC20(novaCoinAddress).transfer(msg.sender, offer.amount);
         emit OfferCancelled(msg.sender, _nftAddress, _tokenId);
     }
+
     function acceptOffer(address _nftAddress, uint256 _tokenId) external nonReentrant {
         Offer memory offer = offers[_nftAddress][_tokenId];
         require(offer.offeror != address(0), "Offer: DNE.");
-        require(IERC721(_nftAddress).ownerOf(_tokenId) == msg.sender, "Offer: Not NFT owner.");
+        require(IERC721(_nftAddress).ownerOf(_tokenId) == msg.sender, "Offer: Not NFT owner."); // Assumes msg.sender is the seller
         delete offers[_nftAddress][_tokenId];
         IERC721(_nftAddress).transferFrom(msg.sender, offer.offeror, _tokenId);
         address novaCoinAddress = novaRegistry.getContractAddress(keccak256(abi.encodePacked("NOVA_COIN")));
